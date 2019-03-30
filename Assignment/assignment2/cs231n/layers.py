@@ -163,26 +163,37 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # TODO: Implement the training-time forward pass for batch norm.      #
         # Use minibatch statistics to compute the mean and variance, use      #
         # these statistics to normalize the incoming data, and scale and      #
-        # shift the normalized data using gamma and beta.                     #
-        #                                                                     #
-        # You should store the output in the variable out. Any intermediates  #
-        # that you need for the backward pass should be stored in the cache   #
-        # variable.                                                           #
-        #                                                                     #
-        # You should also use your computed sample mean and variance together #
-        # with the momentum variable to update the running mean and running   #
-        # variance, storing your result in the running_mean and running_var   #
-        # variables.                                                          #
-        #                                                                     #
-        # Note that though you should be keeping track of the running         #
-        # variance, you should normalize the data based on the standard       #
-        # deviation (square root of variance) instead!                        # 
-        # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
-        # might prove to be helpful.                                          #
+        # shift the normalized data using gamma and beta.                #
+        #                                                #
+        # You should store the output in the variable out. Any intermediates   #
+        # that you need for the backward pass should be stored in the cache    #
+        # variable.                                         #
+        #                                                #
+        # You should also use your computed sample mean and variance together  #
+        # with the momentum variable to update the running mean and running    #
+        # variance, storing your result in the running_mean and running_var    #
+        # variables.                                        #
+        #                                                #
+        # Note that though you should be keeping track of the running        #
+        # variance, you should normalize the data based on the standard      #
+        # deviation (square root of variance) instead!                  # 
+        # Referencing the original paper (https://arxiv.org/abs/1502.03167)    #
+        # might prove to be helpful.                              #
         #######################################################################
-        pass
+        mu = np.mean(x,axis=0)
+        x_mu = x-mu
+        var = np.var(x,axis=0)
+        sqrt_var = np.sqrt(var)+eps
+        ivar = 1/sqrt_var
+        x_norm = (x_mu)*ivar
+        
+        out = gamma*x_norm+beta
+        
+        cache = (x_norm,gamma,x_mu,ivar,sqrt_var,var,eps)
+        running_mean = momentum * running_mean + (1 - momentum) * mu
+        running_var = momentum * running_var + (1 - momentum) * var
         #######################################################################
-        #                           END OF YOUR CODE                          #
+        #                 END OF YOUR CODE                   #
         #######################################################################
     elif mode == 'test':
         #######################################################################
@@ -191,7 +202,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        x_normalize = (x - running_mean) / (np.sqrt(running_var)+eps)
+        out = gamma * x_normalize + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -229,7 +241,26 @@ def batchnorm_backward(dout, cache):
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    N,D=dout.shape
+    x_norm,gamma,x_mu,ivar,sqrt_var,var,eps = cache
+    
+    dbeta = np.sum(dout,axis=0)
+    dgamma = np.sum(dout*x_norm,axis=0)
+    dx_norm = dout*gamma
+    
+    divar = np.sum(dx_norm*x_mu,axis=0)
+    dx_mu1 = dx_norm*ivar
+    
+    dsqrt_var = -1/(sqrt_var**2)*divar
+    dvar = 0.5/(np.sqrt(var)+eps)*dsqrt_var
+    
+    dsq = np.ones((N,D))/N*dvar
+    dx_mu2 = 2*x_mu*dsq
+    
+    dx1 = dx_mu1+dx_mu2
+    dmu = -1*np.sum(dx1,axis=0)
+    dx2 = np.ones((N,D))/N*dmu
+    dx=dx1+dx2
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
