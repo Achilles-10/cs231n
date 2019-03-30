@@ -50,7 +50,7 @@ class TwoLayerNet(object):
         self.params['W1']=np.random.randn(input_dim,hidden_dim)*weight_scale
         self.params['b1']=np.zeros(hidden_dim)
         self.params['W2']=np.random.randn(hidden_dim,num_classes)*weight_scale
-        self.params['b2']=np.zeros(hidden_dim)
+        self.params['b2']=np.zeros(num_classes)
         
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -82,10 +82,13 @@ class TwoLayerNet(object):
         # class scores for X and storing them in the scores variable.              #
         ############################################################################
         N=X.shape[0]
-        
-        l1,l_cache1 = affine_forward(X,self.params['W1'],self.params['b1'])
+        W1=self.params['W1']
+        W2=self.params['W2']
+        b1=self.params['b1']
+        b2=self.params['b2']
+        l1,l_cache1 = affine_forward(X,W1,b1)
         a1,a_cache1 = relu_forward(l1)
-        l2,l_cache2 = affine_forward(a1,self.params['W2'],self.params['b2'])
+        l2,l_cache2 = affine_forward(a1,W2,b2)
         scores = l2
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -107,12 +110,12 @@ class TwoLayerNet(object):
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
         loss,dout = softmax_loss(scores,y)
-        loss+=0.5*self.reg*(np.sum(self.params['W1']**2)+np.sum(self.params['W2']**2))
+        loss+=0.5*self.reg*(np.sum(W1**2)+np.sum(W2**2))
         dx2,dW2,db2 = affine_backward(dout,l_cache2)
         da=relu_backward(dx2,a_cache1)
         dx1,dW1,db1=affine_backward(da,l_cache1)
-        dW1+=self.reg*self.params['W1']
-        dW2+=self.reg*self.params['W2']
+        dW1+=self.reg*W1
+        dW2+=self.reg*W2
         grads['W1']=dW1
         grads['W2']=dW2
         grads['b1']=db1
@@ -183,7 +186,16 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to ones and shift     #
         # parameters should be initialized to zeros.                               #
         ############################################################################
-        pass
+        layer_input_dim = input_dim
+        for i,hd in enumerate(hidden_dims):
+            self.params['W%d'%(i+1)] =weight_scale*np.random.randn(layer_input_dim,hd)
+            self.params['b%d'%(i+1)] =np.zeros(hd)
+            if self.normalization is not None:
+                self.params['gamma%d'%(i+1)] = np.ones(hd)
+                self.params['beta%d'%(i+1)]=np.zeros(hd)
+            layer_input_dim = hd
+        self.params['W%d'%self.num_layers]=weight_scale*np.random.randn(layer_input_dim,num_classes)
+        self.params['b%d'%self.num_layers]=np.zeros(num_classes)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -232,19 +244,30 @@ class FullyConnectedNet(object):
         scores = None
         ############################################################################
         # TODO: Implement the forward pass for the fully-connected net, computing  #
-        # the class scores for X and storing them in the scores variable.          #
-        #                                                                          #
-        # When using dropout, you'll need to pass self.dropout_param to each       #
-        # dropout forward pass.                                                    #
-        #                                                                          #
+        # the class scores for X and storing them in the scores variable.       #
+        #                                                  #
+        # When using dropout, you'll need to pass self.dropout_param to each     #
+        # dropout forward pass.                                   #
+        #                                                  #
         # When using batch normalization, you'll need to pass self.bn_params[0] to #
-        # the forward pass for the first batch normalization layer, pass           #
+        # the forward pass for the first batch normalization layer, pass        #
         # self.bn_params[1] to the forward pass for the second batch normalization #
-        # layer, etc.                                                              #
+        # layer, etc.                                          #
         ############################################################################
-        pass
+        layer_caches={}
+        activ_caches={}
+        layer_input=X
+        for i in range(self.num_layers-1):
+            if self.normalization is not None:
+                pass
+            layer_input,layer_caches[i+1] = affine_forward(layer_input,self.params['W%d'%(i+1)],self.params['b%d'%(i+1)])
+            layer_input,activ_caches[i+1] = relu_forward(layer_input)
+            if self.use_dropout:
+                pass
+        out,layer_caches[self.num_layers] = affine_forward(layer_input,self.params['W%d'%self.num_layers],self.params['b%d'%self.num_layers])
+        scores = out
         ############################################################################
-        #                             END OF YOUR CODE                             #
+        #                    END OF YOUR CODE                    #
         ############################################################################
 
         # If test mode return early
@@ -256,16 +279,30 @@ class FullyConnectedNet(object):
         # TODO: Implement the backward pass for the fully-connected net. Store the #
         # loss in the loss variable and gradients in the grads dictionary. Compute #
         # data loss using softmax, and make sure that grads[k] holds the gradients #
-        # for self.params[k]. Don't forget to add L2 regularization!               #
-        #                                                                          #
-        # When using batch/layer normalization, you don't need to regularize the scale   #
-        # and shift parameters.                                                    #
-        #                                                                          #
+        # for self.params[k]. Don't forget to add L2 regularization!           #
+        #                                                  #
+        # When using batch/layer normalization, you don't need to regularize the scale #
+        # and shift parameters.                                   #
+        #                                                  #
         # NOTE: To ensure that your implementation matches ours and you pass the   #
         # automated tests, make sure that your L2 regularization includes a factor #
-        # of 0.5 to simplify the expression for the gradient.                      #
+        # of 0.5 to simplify the expression for the gradient.               #
         ############################################################################
-        pass
+        loss,dscores = softmax_loss(scores,y)
+        dout = dscores
+        loss += 0.5*self.reg*np.sum(self.params['W%d'%(self.num_layers)]**2)
+        dx,dw,db = affine_backward(dout,layer_caches[self.num_layers])
+        grads['W%d'%(self.num_layers)]=dw+self.reg*self.params['W%d'%(self.num_layers)]
+        grads['b%d'%(self.num_layers)]=db
+        dout=dx
+        for i in range(self.num_layers-1,0,-1):
+            loss += 0.5*self.reg*np.sum(self.params['W%d'%i]**2)
+            dout = relu_backward(dout,activ_caches[i])
+            dx,dw,db = affine_backward(dout,layer_caches[i])
+            grads['W%d'%i]=dw+self.reg*self.params['W%d'%i]
+            grads['b%d'%i]=db
+            dout=dx
+        
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
