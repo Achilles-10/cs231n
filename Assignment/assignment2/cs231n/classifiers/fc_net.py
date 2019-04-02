@@ -255,15 +255,20 @@ class FullyConnectedNet(object):
         # layer, etc.                                          #
         ############################################################################
         layer_caches={}
+        bn_caches={}
         activ_caches={}
+        ln_caches={}
+        dropout_caches={}
         layer_input=X
         for i in range(self.num_layers-1):
-            if self.normalization is not None:
-                pass
             layer_input,layer_caches[i+1] = affine_forward(layer_input,self.params['W%d'%(i+1)],self.params['b%d'%(i+1)])
+            if self.normalization=='batchnorm':
+                layer_input,bn_caches[i+1] = batchnorm_forward(layer_input,self.params['gamma%d'%(i+1)],self.params['beta%d'%(i+1)],self.bn_params[i])
+            if self.normalization=='layernorm':
+                layer_input,ln_caches[i+1] = layernorm_forward(layer_input,self.params['gamma%d'%(i+1)],self.params['beta%d'%(i+1)],self.bn_params[i])
             layer_input,activ_caches[i+1] = relu_forward(layer_input)
             if self.use_dropout:
-                pass
+                layer_input,dropout_caches[i+1] =dropout_forward(layer_input,self.dropout_param)
         out,layer_caches[self.num_layers] = affine_forward(layer_input,self.params['W%d'%self.num_layers],self.params['b%d'%self.num_layers])
         scores = out
         ############################################################################
@@ -298,6 +303,12 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers-1,0,-1):
             loss += 0.5*self.reg*np.sum(self.params['W%d'%i]**2)
             dout = relu_backward(dout,activ_caches[i])
+            if self.normalization=='batchnorm':
+                dout,grads['gamma%d'%i],grads['beta%d'%i] = batchnorm_backward(dout,bn_caches[i])
+            if self.normalization=='layernorm':
+                dout,grads['gamma%d'%i],grads['beta%d'%i] = layernorm_backward(dout,ln_caches[i])
+            if self.use_dropout:
+                dout = dropout_backward(dout,dropout_caches[i])
             dx,dw,db = affine_backward(dout,layer_caches[i])
             grads['W%d'%i]=dw+self.reg*self.params['W%d'%i]
             grads['b%d'%i]=db

@@ -183,7 +183,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         mu = np.mean(x,axis=0)
         x_mu = x-mu
         var = np.var(x,axis=0)
-        sqrt_var = np.sqrt(var)+eps
+        sqrt_var = np.sqrt(var+eps)
         ivar = 1/sqrt_var
         x_norm = (x_mu)*ivar
         
@@ -202,7 +202,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        x_normalize = (x - running_mean) / (np.sqrt(running_var)+eps)
+        x_normalize = (x - running_mean) / np.sqrt(running_var+eps)
         out = gamma * x_normalize + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
@@ -252,7 +252,7 @@ def batchnorm_backward(dout, cache):
     dx_mu1 = dx_norm*ivar
     
     dsqrt_var = -1/(sqrt_var**2)*divar
-    dvar = 0.5/(np.sqrt(var)+eps)*dsqrt_var
+    dvar = 0.5*ivar*dsqrt_var
     
     dsq = np.ones((N,D))/N*dvar
     dx_mu2 = 2*x_mu*dsq
@@ -291,7 +291,13 @@ def batchnorm_backward_alt(dout, cache):
     # should be able to compute gradients with respect to the inputs in a     #
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
-    pass
+    N,D = dout.shape
+    x_norm,gamma,x_mu,ivar,sqrt_var,var,eps = cache
+    dx_norm = dout*gamma
+    dx = 1.0/N * ivar * (N*dx_norm - np.sum(dx_norm, axis=0) - x_norm*np.sum(dx_norm*x_norm, axis=0))
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(x_norm*dout, axis=0)
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -333,7 +339,18 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
-    pass
+    x=x.T
+    mu = np.mean(x,axis=0)
+    x_mu = x-mu
+    var = np.var(x,axis=0)
+    sqrt_var=np.sqrt(var+eps)
+    ivar=1/sqrt_var
+    x_norm = x_mu*ivar
+    
+    x_norm=x_norm.T
+    
+    out = x_norm*gamma+beta
+    cache=(x_norm,gamma,x_mu,ivar,sqrt_var,var,eps)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -364,7 +381,21 @@ def layernorm_backward(dout, cache):
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-    pass
+    x_norm,gamma,x_mu,ivar,sqrt_var,var,eps = cache
+    
+    dbeta = np.sum(dout,axis=0)
+    dgamma=np.sum(dout*x_norm,axis=0)
+    
+    dx_norm = dout*gamma
+#     print(x_norm.shape,ivar.shape,dx_norm.shape,dout.shape)
+    dx_norm = dx_norm.T
+    x_norm = x_norm.T
+    
+    N,D=x_norm.shape
+    
+    dx = 1.0/N * ivar * (N*dx_norm - np.sum(dx_norm, axis=0) - x_norm*np.sum(dx_norm*x_norm, axis=0))
+    
+    dx=dx.T
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -409,7 +440,8 @@ def dropout_forward(x, dropout_param):
         # TODO: Implement training phase forward pass for inverted dropout.   #
         # Store the dropout mask in the mask variable.                        #
         #######################################################################
-        pass
+        mask = (np.random.rand(*x.shape)<p)/p
+        out = x*mask
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -417,7 +449,7 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # TODO: Implement the test phase forward pass for inverted dropout.   #
         #######################################################################
-        pass
+        out = x
         #######################################################################
         #                            END OF YOUR CODE                         #
         #######################################################################
@@ -444,7 +476,7 @@ def dropout_backward(dout, cache):
         #######################################################################
         # TODO: Implement training phase backward pass for inverted dropout   #
         #######################################################################
-        pass
+        dx = dout*mask
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
